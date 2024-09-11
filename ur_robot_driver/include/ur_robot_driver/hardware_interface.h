@@ -215,6 +215,10 @@ protected:
   void commandCallback(const std_msgs::StringConstPtr& msg);
   bool setPayload(ur_msgs::SetPayloadRequest& req, ur_msgs::SetPayloadResponse& res);
   bool activateSplineInterpolation(std_srvs::SetBoolRequest& req, std_srvs::SetBoolResponse& res);
+bool setFreedrive(std_srvs::SetBoolRequest& req, std_srvs::SetBoolResponse& res);
+  bool getLastStartedCtrl(std_srvs::TriggerRequest& req, std_srvs::TriggerResponse& res);
+  bool flag_first_controller_started(std_srvs::TriggerRequest& req, std_srvs::TriggerResponse& res);
+
 
   std::unique_ptr<urcl::UrDriver> ur_driver_;
   std::unique_ptr<DashboardClientROS> dashboard_client_;
@@ -239,7 +243,9 @@ protected:
   ros::ServiceServer tare_sensor_srv_;
   ros::ServiceServer set_payload_srv_;
   ros::ServiceServer activate_spline_interpolation_srv_;
-
+ros::ServiceServer set_freedrive_srv_;
+  ros::ServiceServer get_last_started_ctrl_srv_;
+  ros::ServiceServer flag_first_controller_started_srv_;
   hardware_interface::JointStateInterface js_interface_;
   scaled_controllers::ScaledPositionJointInterface spj_interface_;
   hardware_interface::PositionJointInterface pj_interface_;
@@ -329,6 +335,7 @@ protected:
   std::atomic<bool> twist_controller_running_;
   std::atomic<bool> pose_controller_running_;
   std::atomic<bool> use_spline_interpolation_;
+std::atomic<bool> freedrive_running_;
 
   PausingState pausing_state_;
   double pausing_ramp_up_increment_;
@@ -345,6 +352,8 @@ protected:
 
   std::string robot_ip_;
   std::string tf_prefix_;
+std::string last_started_controller_;
+  bool flag_first_controller_started_;
 };
 
 }  // namespace ur_driver
