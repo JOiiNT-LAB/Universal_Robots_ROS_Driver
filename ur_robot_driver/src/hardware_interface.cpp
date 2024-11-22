@@ -35,7 +35,6 @@
 #include <trajectory_msgs/JointTrajectory.h>
 #include <control_msgs/FollowJointTrajectoryAction.h>
 #include <cartesian_control_msgs/FollowCartesianTrajectoryAction.h>
-
 #include <Eigen/Geometry>
 #include <stdexcept>
 
@@ -463,9 +462,12 @@ ur_driver_->setKeepaliveCount(5); //////?????
   activate_spline_interpolation_srv_ = robot_hw_nh.advertiseService(
       "activate_spline_interpolation", &HardwareInterface::activateSplineInterpolation, this);
 
-set_freedrive_srv_ = robot_hw_nh.advertiseService("set_freedrive", &HardwareInterface::setFreedrive, this);
+  set_freedrive_srv_ = robot_hw_nh.advertiseService("set_freedrive", &HardwareInterface::setFreedrive, this);
   get_last_started_ctrl_srv_ = robot_hw_nh.advertiseService("get_last_started_ctrl", &HardwareInterface::getLastStartedCtrl, this);
   flag_first_controller_started_srv_ = robot_hw_nh.advertiseService("flag_first_controller_started", &HardwareInterface::flag_first_controller_started, this);
+  list_controller_client = robot_hw_nh.serviceClient<controller_manager_msgs::ListControllers>("/robot_ur10e/controller_manager/list_controllers");
+  switch_controller_client = robot_hw_nh.serviceClient<controller_manager_msgs::SwitchController>("/robot_ur10e/controller_manager/switch_controller");
+
 
   ur_driver_->startRTDECommunication();
   ROS_INFO_STREAM_NAMED("hardware_interface", "Loaded ur_robot_driver hardware_interface");
@@ -777,7 +779,7 @@ void HardwareInterface::doSwitch(const std::list<hardware_interface::ControllerI
     {
       if (checkControllerClaims(resource_it.resources))
       {
-std::cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!stop_list : " << controller_it.name << std::endl;
+        ROS_WARN("UR controller stop_list: %s", controller_it.name.c_str());
         if(last_started_controller_.compare(controller_it.name) == 0)last_started_controller_.clear();
 
         if (resource_it.hardware_interface == "scaled_controllers::ScaledPositionJointInterface")
@@ -1195,39 +1197,71 @@ bool HardwareInterface::setPayload(ur_msgs::SetPayloadRequest& req, ur_msgs::Set
 
 bool HardwareInterface::setFreedrive(std_srvs::SetBoolRequest& req, std_srvs::SetBoolResponse& res)
 {
-  
-    if(req.data)
+  controller_manager_msgs::ListControllers list_controller_srv;
+  controller_manager_msgs::SwitchController switch_controller_srv;
+
+  list_controller_srv.response.controller.clear();
+  switch_controller_srv.request.stop_controllers.clear();
+  switch_controller_srv.request.start_controllers.clear();
+  ROS_INFO("SET FREEDRIVE");
+  std::ostringstream oss;
+  oss << std::boolalpha << req.data;
+  std::string request = oss.str();
+
+  std::cout << "request: " << request << std::endl;
+
+  if(req.data)
+  {
+    if(true)
     {
-      if(last_started_controller_.empty())
+      ROS_INFO("DEACTIVATING ACTIVE CONTROLLERS");
+
+      if(list_controller_client.call(list_controller_srv))
       {
-        ur_driver_->writeFreedriveControlMessage(urcl::control::FreedriveControlMessage::FREEDRIVE_START);
-        freedrive_running_ = true;
-        res.success = true;
+        ROS_INFO("CONTROLLER LIST");
+        switch_controller_srv.request.strictness = 1; // 1 = BEST_EFFORT | 2 = STRICT
+        for (const auto& controller : list_controller_srv.response.controller) {
+          if (controller.name != "joint_state_controller" && controller.state == "running")
+          {
+            ROS_WARN("Controller %s in state %s stopped.", controller.name.c_str(), controller.state.c_str());
+            switch_controller_srv.request.stop_controllers.push_back(controller.name);
+            deactivated_controller_list.push_back(controller.name);
+          }
+        }
+        switch_controller_client.call(switch_controller_srv);
       }
-      else
-      {
-        ROS_WARN_STREAM("STOP CONTROLLER BEFORE SETTING FREEDRIVE");
-        res.success = false;
-      }
+
+      ur_driver_->writeFreedriveControlMessage(urcl::control::FreedriveControlMessage::FREEDRIVE_START);
+      freedrive_running_ = true;
+      res.success = true;
     }
     else
     {
-      if(freedrive_running_)
-      {
-        ur_driver_->writeFreedriveControlMessage(urcl::control::FreedriveControlMessage::FREEDRIVE_STOP);
-        freedrive_running_ = false;
-        res.success = true;
-      }
-      else
-      {
-        ROS_WARN_STREAM("FREEDRIVE IS NOT RUNNING");
-        res.success = false;
-      }
-      
+      ROS_WARN_STREAM("STOP CONTROLLER BEFORE SETTING FREEDRIVE");
+      res.success = false;
     }
+  } else {
+    if(freedrive_running_)
+    {
+      ur_driver_->writeFreedriveControlMessage(urcl::control::FreedriveControlMessage::FREEDRIVE_STOP);
+      for (const auto& controller : deactivated_controller_list) {
+          ROS_WARN("Activating controller: %s", controller.c_str());
+          switch_controller_srv.request.start_controllers.push_back(controller);
+      }
+      switch_controller_srv.request.strictness = 1;
+      switch_controller_client.call(switch_controller_srv);
+      deactivated_controller_list.clear();
 
-  
-  
+      freedrive_running_ = false;
+      res.success = true;
+    }
+    else
+    {
+      ROS_WARN_STREAM("FREEDRIVE IS NOT RUNNING");
+      res.success = false;
+    }
+  }
+
   return true;
 }
 

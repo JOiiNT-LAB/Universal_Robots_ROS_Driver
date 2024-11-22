@@ -70,6 +70,9 @@
 #include <industrial_robot_status_interface/industrial_robot_status_interface.h>
 #include <kdl/frames.hpp>
 
+#include <controller_manager_msgs/ListControllers.h>
+#include <controller_manager_msgs/SwitchController.h>
+
 namespace ur_driver
 {
 /*!
@@ -215,7 +218,7 @@ protected:
   void commandCallback(const std_msgs::StringConstPtr& msg);
   bool setPayload(ur_msgs::SetPayloadRequest& req, ur_msgs::SetPayloadResponse& res);
   bool activateSplineInterpolation(std_srvs::SetBoolRequest& req, std_srvs::SetBoolResponse& res);
-bool setFreedrive(std_srvs::SetBoolRequest& req, std_srvs::SetBoolResponse& res);
+  bool setFreedrive(std_srvs::SetBoolRequest& req, std_srvs::SetBoolResponse& res);
   bool getLastStartedCtrl(std_srvs::TriggerRequest& req, std_srvs::TriggerResponse& res);
   bool flag_first_controller_started(std_srvs::TriggerRequest& req, std_srvs::TriggerResponse& res);
 
@@ -243,9 +246,12 @@ bool setFreedrive(std_srvs::SetBoolRequest& req, std_srvs::SetBoolResponse& res)
   ros::ServiceServer tare_sensor_srv_;
   ros::ServiceServer set_payload_srv_;
   ros::ServiceServer activate_spline_interpolation_srv_;
-ros::ServiceServer set_freedrive_srv_;
+  ros::ServiceServer set_freedrive_srv_;
+
   ros::ServiceServer get_last_started_ctrl_srv_;
   ros::ServiceServer flag_first_controller_started_srv_;
+  ros::ServiceClient list_controller_client;
+  ros::ServiceClient switch_controller_client;
   hardware_interface::JointStateInterface js_interface_;
   scaled_controllers::ScaledPositionJointInterface spj_interface_;
   hardware_interface::PositionJointInterface pj_interface_;
@@ -270,6 +276,8 @@ ros::ServiceServer set_freedrive_srv_;
   geometry_msgs::Twist target_cart_twist_;
   geometry_msgs::Pose error_cart_pose_;
   geometry_msgs::Twist error_cart_twist_;
+
+  std::vector<std::string> deactivated_controller_list;
 
   KDL::Vector tcp_vec_;
   double tcp_angle_;
@@ -352,7 +360,7 @@ std::atomic<bool> freedrive_running_;
 
   std::string robot_ip_;
   std::string tf_prefix_;
-std::string last_started_controller_;
+  std::string last_started_controller_;
   bool flag_first_controller_started_;
 };
 
