@@ -39,6 +39,7 @@
 #include <std_msgs/String.h>
 #include <std_srvs/Trigger.h>
 #include <std_srvs/SetBool.h>
+#include <std_srvs/Empty.h>
 #include <realtime_tools/realtime_publisher.h>
 #include <tf2_msgs/TFMessage.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
@@ -252,6 +253,7 @@ protected:
   ros::ServiceServer flag_first_controller_started_srv_;
   ros::ServiceClient list_controller_client;
   ros::ServiceClient switch_controller_client;
+  ros::ServiceClient toggle_inv_kin_client;
   hardware_interface::JointStateInterface js_interface_;
   scaled_controllers::ScaledPositionJointInterface spj_interface_;
   hardware_interface::PositionJointInterface pj_interface_;
@@ -276,6 +278,9 @@ protected:
   geometry_msgs::Twist target_cart_twist_;
   geometry_msgs::Pose error_cart_pose_;
   geometry_msgs::Twist error_cart_twist_;
+
+
+  std_srvs::Empty toggle_inv_kin_request;
 
   std::vector<std::string> deactivated_controller_list;
 

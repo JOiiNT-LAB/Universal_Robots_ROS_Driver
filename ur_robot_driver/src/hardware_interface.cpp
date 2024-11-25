@@ -467,6 +467,7 @@ ur_driver_->setKeepaliveCount(5); //////?????
   flag_first_controller_started_srv_ = robot_hw_nh.advertiseService("flag_first_controller_started", &HardwareInterface::flag_first_controller_started, this);
   list_controller_client = robot_hw_nh.serviceClient<controller_manager_msgs::ListControllers>("/robot_ur10e/controller_manager/list_controllers");
   switch_controller_client = robot_hw_nh.serviceClient<controller_manager_msgs::SwitchController>("/robot_ur10e/controller_manager/switch_controller");
+  toggle_inv_kin_client = robot_hw_nh.serviceClient<std_srvs::Empty>("/robot_ur10e/inv_kin");
 
 
   ur_driver_->startRTDECommunication();
@@ -1214,8 +1215,11 @@ bool HardwareInterface::setFreedrive(std_srvs::SetBoolRequest& req, std_srvs::Se
   {
     if(true)
     {
-      ROS_INFO("DEACTIVATING ACTIVE CONTROLLERS");
+      if(toggle_inv_kin_client.call(toggle_inv_kin_request)){
+        ROS_INFO("Inverse kinematic stopped.");
+      }
 
+      ROS_INFO("DEACTIVATING ACTIVE CONTROLLERS");
       if(list_controller_client.call(list_controller_srv))
       {
         ROS_INFO("CONTROLLER LIST");
@@ -1244,13 +1248,35 @@ bool HardwareInterface::setFreedrive(std_srvs::SetBoolRequest& req, std_srvs::Se
     if(freedrive_running_)
     {
       ur_driver_->writeFreedriveControlMessage(urcl::control::FreedriveControlMessage::FREEDRIVE_STOP);
-      for (const auto& controller : deactivated_controller_list) {
-          ROS_WARN("Activating controller: %s", controller.c_str());
-          switch_controller_srv.request.start_controllers.push_back(controller);
-      }
-      switch_controller_srv.request.strictness = 1;
+
+      // ROS_WARN("Activating joint_group_position_controller!");
+      switch_controller_srv.request.start_controllers.clear();
+      switch_controller_srv.request.stop_controllers.clear();
+      switch_controller_srv.request.start_controllers.push_back("pos_joint_traj_controller");
       switch_controller_client.call(switch_controller_srv);
-      deactivated_controller_list.clear();
+
+      switch_controller_srv.request.start_controllers.clear();
+      switch_controller_srv.request.stop_controllers.clear();
+      switch_controller_srv.request.stop_controllers.push_back("pos_joint_traj_controller");
+      switch_controller_client.call(switch_controller_srv);
+
+      switch_controller_srv.request.start_controllers.clear();
+      switch_controller_srv.request.stop_controllers.clear();
+      switch_controller_srv.request.stop_controllers.push_back("joint_group_position_controller");
+      switch_controller_client.call(switch_controller_srv);
+
+      if(toggle_inv_kin_client.call(toggle_inv_kin_request)){
+        ROS_INFO("Inverse kinematic started.");
+      }
+
+      // ur_driver_->writeFreedriveControlMessage(urcl::control::FreedriveControlMessage::FREEDRIVE_STOP);
+      // for (const auto& controller : deactivated_controller_list) {
+      //     ROS_WARN("Activating controller: %s", controller.c_str());
+      //     switch_controller_srv.request.start_controllers.push_back(controller);
+      // }
+      // switch_controller_srv.request.strictness = 1;
+      // switch_controller_client.call(switch_controller_srv);
+      // deactivated_controller_list.clear();
 
       freedrive_running_ = false;
       res.success = true;
@@ -1264,6 +1290,8 @@ bool HardwareInterface::setFreedrive(std_srvs::SetBoolRequest& req, std_srvs::Se
 
   return true;
 }
+
+
 
 bool HardwareInterface::getLastStartedCtrl(std_srvs::TriggerRequest& req, std_srvs::TriggerResponse& res)
 {
