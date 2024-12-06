@@ -1262,7 +1262,7 @@ bool HardwareInterface::setFreedrive(std_srvs::SetBoolRequest& req, std_srvs::Se
 
       switch_controller_srv.request.start_controllers.clear();
       switch_controller_srv.request.stop_controllers.clear();
-      switch_controller_srv.request.stop_controllers.push_back("joint_group_position_controller");
+      switch_controller_srv.request.start_controllers.push_back("joint_group_position_controller");
       switch_controller_client.call(switch_controller_srv);
 
       if(toggle_inv_kin_client.call(toggle_inv_kin_request)){
